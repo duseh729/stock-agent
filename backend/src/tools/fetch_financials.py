@@ -30,7 +30,7 @@ def mass_collect_financials(target_year=2024):
         
         try:
             # 연결(CFS) 시도 -> 없으면 별도(OFS) 시도
-            fs = dart.finstate_all(code, target_year)
+            fs = dart.finstate_all(code, target_year, reprt_code='11014', fs_div='CFS')
             if fs is None:
                 fs = dart.finstate_all(code, target_year, reprt_code='11011', fs_div='OFS')
             
@@ -50,4 +50,4 @@ def mass_collect_financials(target_year=2024):
             continue
 
 if __name__ == "__main__":
-    mass_collect_financials(2023)
+    mass_collect_financials(2025)
