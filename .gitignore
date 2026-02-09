@@ -1,1 +1,4 @@
 .env
+
+corp_list.csv
+fs*.csv

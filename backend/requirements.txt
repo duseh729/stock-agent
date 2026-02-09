@@ -1,0 +1,16 @@
+# Core
+langgraph
+langchain
+langchain-openai
+python-dotenv
+
+# Data & Finance
+OpenDartReader
+pandas
+numpy
+
+# SLM & Training (PC의 1660 Super에서 GPU 사용 시 필요)
+# 주의: PyTorch는 시스템 환경(CUDA 버전)에 맞춰 설치하는 것이 가장 안전합니다.
+unsloth
+torch
+transformers
