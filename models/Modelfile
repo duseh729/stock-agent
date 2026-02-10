@@ -1,0 +1,15 @@
+FROM ./dart_model_v1.gguf
+
+PARAMETER temperature 0.1
+
+PARAMETER num_ctx 4096
+
+PARAMETER stop "<|eot_id|>" 
+
+PARAMETER stop "### Instruction:"
+
+TEMPLATE """### Instruction: 
+
+{{ .Prompt }}
+
+### Response: """
