@@ -1,6 +1,6 @@
-# 🚀 Stock Assistant AI: RAG 기반 재무 분석 챗봇
+# 🚀 Stock Assistant AI: LangGraph + RAG 기반 재무 분석 챗봇
 
-OpenDART에서 수집한 **상장사 재무제표 데이터**를 벡터 DB(ChromaDB)에 임베딩하고, **RAG(Retrieval-Augmented Generation) + Gemini** 기반 스트리밍 응답을 제공하는 재무 분석 챗봇입니다.
+OpenDART에서 수집한 **상장사 재무제표 데이터**를 벡터 DB(ChromaDB)에 임베딩하고, **LangGraph** 기반 멀티스텝 파이프라인(검색 → 품질 평가 → 답변 생성)과 **Gemini 2.5 Flash** 스트리밍 응답을 제공하는 재무 분석 챗봇입니다.
 
 ---
 
@@ -12,6 +12,7 @@ OpenDART에서 수집한 **상장사 재무제표 데이터**를 벡터 DB(Chrom
 | **LLM**            | Gemini 2.5 Flash (답변 생성)                          |
 | **Embedding**      | `jhgan/ko-sroberta-multitask` (로컬 CPU, HuggingFace) |
 | **Vector DB**      | ChromaDB (로컬 저장)                                  |
+| **Orchestration**  | LangGraph (Retrieve → Grade → Generate)               |
 | **Framework**      | LangChain, LangChain-HuggingFace                      |
 | **API Server**     | FastAPI + StreamingResponse                           |
 | **Data Source**    | OpenDART API (재무제표)                               |
@@ -25,7 +26,7 @@ OpenDART에서 수집한 **상장사 재무제표 데이터**를 벡터 DB(Chrom
 stock-agent/
 ├── models/                          # 📌 핵심 실행 디렉토리
 │   ├── main.py                      # FastAPI 스트리밍 API 서버
-│   ├── rag_gemini.py                # RAG 엔진 (임베딩 + 검색 + Gemini 답변)
+│   ├── rag_gemini.py                # LangGraph RAG 엔진 (검색 → 평가 → 생성)
 │   ├── gemini_test.py               # RAG 기능 테스트 스크립트
 │   ├── test.html                    # 브라우저 스트리밍 테스트 페이지
 │   ├── dart_financial_analysis_dataset.jsonl  # 학습/임베딩용 재무 데이터셋 (~6,000건)
@@ -92,17 +93,27 @@ uvicorn main:app --reload
 
 ## 🏗️ Architecture
 
+### 데이터 파이프라인
+
 ```mermaid
 graph LR
     A[OpenDART API] -->|CSV 수집| B[dart_collector.py]
     B -->|CSV → JSONL| C[make_finetune_dataset.py]
     C -->|6,000건 데이터셋| D[dart_financial_analysis_dataset.jsonl]
+    D -->|로컬 임베딩| E["ChromaDB (ko-sroberta)"]
+```
 
-    D -->|로컬 임베딩| E[ChromaDB<br/>ko-sroberta-multitask]
-    E -->|유사도 검색| F[rag_gemini.py<br/>FinanceRAG]
-    F -->|컨텍스트 전달| G[Gemini 2.5 Flash]
-    G -->|스트리밍 응답| H[FastAPI<br/>main.py]
-    H -->|SSE| I[브라우저<br/>test.html]
+### LangGraph 질의응답 파이프라인
+
+```mermaid
+graph TD
+    Q[사용자 질문] --> R["🔍 Retrieve<br/>ChromaDB 유사도 검색 (k=5)"]
+    R --> G["⚖️ Grade Documents<br/>Gemini가 문서 적합성 판단"]
+    G -->|yes| GEN["✍️ Generate<br/>Gemini 스트리밍 답변 생성"]
+    G -->|no & 재시도 가능| R
+    G -->|no & 재시도 초과| FAIL["❌ 데이터 부족 응답"]
+    GEN --> API["FastAPI<br/>StreamingResponse"]
+    API --> UI["브라우저<br/>test.html"]
 ```
 
 ---
@@ -139,10 +150,13 @@ graph LR
 - [x] Unsloth + QLoRA로 Llama 3.2 3B 파인튜닝
 - [x] GGUF 변환 및 Ollama 등록 (`dart_model_v1.gguf`)
 
-### ✅ Step 3 — RAG + Streaming API (완료)
+### ✅ Step 3 — LangGraph + RAG + Streaming API (완료)
 
 - [x] 로컬 임베딩 모델(`ko-sroberta-multitask`) + ChromaDB 벡터 DB 구축
 - [x] Gemini 2.5 Flash 기반 RAG 질의응답 (`rag_gemini.py`)
+- [x] LangGraph 멀티스텝 파이프라인 도입 (Retrieve → Grade → Generate)
+  - 검색 문서 품질 평가 (Gemini 기반 Grading)
+  - 부적합 시 최대 2회 자동 재시도
 - [x] FastAPI 스트리밍 API 서버 구현 (`main.py`)
 - [x] 브라우저 테스트 페이지 (`test.html`)
 
