@@ -1,10 +1,32 @@
+"""
+fetch_financials.py — OpenDART API를 통한 재무제표 수집 모듈 (현재 미사용)
+
+[역할]
+  OpenDartReader 라이브러리를 사용하여 DART 전자공시 시스템에서
+  상장 기업의 재무제표 데이터를 수집·정제하는 스크립트.
+
+[주요 함수]
+  - mass_collect_financials(): 시가총액 상위 기업 목록(corp_list.csv) 기반
+    대량 재무제표 수집. 이어받기(resume) 로직 포함.
+  - get_refined_financials(): 단일 기업의 재무제표를 조회하고,
+    processing_financials.refine_dart_res()로 8대 핵심 지표를 정제하여 반환.
+
+[의존]
+  - processing_financials.py (같은 디렉토리) → refine_dart_res()
+  - OpenDartReader, pandas, dotenv
+
+[참조하는 곳]
+  - models/dart_langgraph.py (실험용 LangGraph 파이프라인)
+"""
 import OpenDartReader
 import pandas as pd
 import os
 import time
 from dotenv import load_dotenv
+from processing_financials import refine_dart_res
 
-load_dotenv()
+env_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env')
+load_dotenv(env_path)
 dart = OpenDartReader(os.getenv("DART_API_KEY"))
 
 def mass_collect_financials(target_year=2024):
@@ -49,5 +71,30 @@ def mass_collect_financials(target_year=2024):
             print(f"[{idx+1}/{len(df_listed)}] {name} ❌ 에러: {e}")
             continue
 
+# 특정 회사 정보 뽑아오는 코드
+def get_refined_financials(corp_name, target_year=2025):
+    print(f"--- [TOOL] get_refined_financials 호출: {corp_name} ---")
+    
+    try:
+        # [중요] finstate 호출 전, 기업 코드가 존재하는지 먼저 확인 (TypeError 방지)
+        corp_code = dart.find_corp_code(corp_name)
+        if not corp_code:
+            print(f"❌ 기업 코드를 찾을 수 없음: {corp_name}")
+            return None
+
+        # 코드가 있을 때만 호출
+        res = dart.finstate(corp_code, target_year, reprt_code='11014')
+        
+        if res is None or (isinstance(res, pd.DataFrame) and res.empty):
+            return None
+            
+        return refine_dart_res(res, corp_name)
+        
+    except Exception as e:
+        print(f"DART API Error: {e}")
+        return None
+
 if __name__ == "__main__":
-    mass_collect_financials(2025)
+    print('여기는 fetch_financials')
+    # mass_collect_financials(2025)
+    # get_refined_financials('삼성전자')
