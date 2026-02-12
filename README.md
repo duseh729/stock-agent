@@ -1,20 +1,21 @@
-# 🚀 Stock Assistant AI: LangGraph & SLM 기반 주식 투자 도우미
+# 🚀 Stock Assistant AI: RAG 기반 재무 분석 챗봇
 
-본 프로젝트는 기업의 **재무제표 데이터(OpenDART)**를 수집하고, **SLM(Llama 3.2 3B)** 파인튜닝과 **LangGraph**를 활용하여 고도화된 투자 분석 에이전트를 구축하는 것을 목표로 합니다.
+OpenDART에서 수집한 **상장사 재무제표 데이터**를 벡터 DB(ChromaDB)에 임베딩하고, **RAG(Retrieval-Augmented Generation) + Gemini** 기반 스트리밍 응답을 제공하는 재무 분석 챗봇입니다.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| 구분 | 기술 |
-|------|------|
-| **Language** | Python 3.11 (Conda Environment) |
-| **Orchestration** | LangGraph, LangChain |
-| **Domain SLM** | Llama 3.2 3B → Unsloth QLoRA 파인튜닝 → GGUF 변환 |
-| **Inference Server** | Ollama (로컬 서빙) |
-| **Data Source** | OpenDART API (재무제표) |
-| **Database** | SQLite / Supabase (예정) |
-| **GPU** | NVIDIA GTX 1660 Super (VRAM 6GB) |
+| 구분               | 기술                                                  |
+| ------------------ | ----------------------------------------------------- |
+| **Language**       | Python 3.11 (Conda)                                   |
+| **LLM**            | Gemini 2.5 Flash (답변 생성)                          |
+| **Embedding**      | `jhgan/ko-sroberta-multitask` (로컬 CPU, HuggingFace) |
+| **Vector DB**      | ChromaDB (로컬 저장)                                  |
+| **Framework**      | LangChain, LangChain-HuggingFace                      |
+| **API Server**     | FastAPI + StreamingResponse                           |
+| **Data Source**    | OpenDART API (재무제표)                               |
+| **Fine-tuned SLM** | Llama 3.2 3B (Unsloth QLoRA → GGUF, Ollama 서빙)      |
 
 ---
 
@@ -22,139 +23,132 @@
 
 ```text
 stock-agent/
+├── models/                          # 📌 핵심 실행 디렉토리
+│   ├── main.py                      # FastAPI 스트리밍 API 서버
+│   ├── rag_gemini.py                # RAG 엔진 (임베딩 + 검색 + Gemini 답변)
+│   ├── gemini_test.py               # RAG 기능 테스트 스크립트
+│   ├── test.html                    # 브라우저 스트리밍 테스트 페이지
+│   ├── dart_financial_analysis_dataset.jsonl  # 학습/임베딩용 재무 데이터셋 (~6,000건)
+│   ├── top_30_financial_data.jsonl   # 시총 상위 30개 기업 재무 데이터
+│   ├── finance_local_db/            # ChromaDB 벡터 저장소 (gitignore)
+│   ├── dart_langgraph.py            # LangGraph 에이전트 (실험용, 미사용)
+│   ├── dart_model_v1.gguf           # 파인튜닝된 GGUF 모델 파일
+│   ├── dart_test.py                 # Ollama 연동 테스트
+│   └── Modelfile                    # Ollama 모델 등록 설정
 ├── backend/
-│   ├── data/
-│   │   └── raw/                  # 원본 CSV (상장사 리스트, 재무제표 등)
-│   ├── src/
-│   │   ├── slm/                  # SLM 파인튜닝 관련
-│   │   │   ├── finetune.py       # Unsloth + QLoRA 파인튜닝 스크립트
-│   │   │   ├── inference.py      # 파인튜닝 모델 추론 테스트
-│   │   │   └── dart_financial_analysis_dataset.jsonl  # 학습 데이터셋
-│   │   └── tools/                # 데이터 수집 도구
-│   │       ├── dart_collector.py     # 상장사 리스트 수집
-│   │       └── fetch_financials.py   # 대량 재무제표 수집 (이어받기 지원)
-│   ├── .env                      # API Keys (GIT IGNORE 필수)
-│   └── requirements.txt
-├── models/
-│   ├── dart_model_v1.gguf        # 파인튜닝된 GGUF 모델 파일
-│   ├── Modelfile                 # Ollama 모델 등록 설정
-│   ├── dart_langgraph.py         # LangGraph 에이전트 (추출→검증→재시도)
-│   └── dart_test.py              # Ollama 연동 테스트 스크립트
-└── .gitignore
+│   ├── data/raw/                    # 원본 CSV (상장사 리스트, 재무제표 등)
+│   └── src/tools/                   # 데이터 수집·가공 도구
+│       ├── dart_collector.py        # 상장사 리스트 수집
+│       ├── make_finetune_dataset.py # CSV → JSONL 학습 데이터셋 생성
+│       ├── fetch_financials.py      # DART 재무제표 수집 (미사용, 주석 참조)
+│       └── processing_financials.py # 재무 데이터 정제 (미사용, 주석 참조)
+├── .env                             # API Keys (DART_API_KEY, GOOGLE_API_KEY)
+├── requirements.txt
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## ⚙️ Setup Instructions
+## ⚙️ Setup & Run
 
-### 1. 가상환경 설정 (Conda)
+### 1. 환경 설정
 
 ```bash
 conda create -n stock-agent python=3.11 -y
 conda activate stock-agent
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 2. 환경 변수 설정
 
-`backend/.env` 파일을 생성하고 아래 키를 입력:
+프로젝트 루트에 `.env` 파일 생성:
 
 ```text
-DART_API_KEY=your_api_key_here
-OPENAI_API_KEY=your_openai_key_here
+DART_API_KEY=your_dart_api_key
+GOOGLE_API_KEY=your_google_api_key
 ```
 
-### 3. 데이터 수집 실행
-
-```bash
-# Step 1: 상장사 리스트 수집
-cd backend/src/tools
-python dart_collector.py
-
-# Step 2: 재무제표 대량 수집 (이어받기 모드 지원)
-python fetch_financials.py
-```
-
-### 4. SLM 파인튜닝 (WSL 환경 권장)
-
-```bash
-# Unsloth 설치
-pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
-pip install --no-deps "xformers<0.0.27" "trl<0.9.0" peft accelerate bitsandbytes
-
-# 파인튜닝 실행
-cd backend/src/slm
-python finetune.py
-```
-
-### 5. Ollama 모델 등록 & 실행
-
-```bash
-# GGUF 모델을 Ollama에 등록
-cd models
-ollama create dart_model_v1 -f Modelfile
-
-# 테스트
-python dart_test.py
-```
-
-### 6. LangGraph 에이전트 실행
+### 3. 벡터 DB 구축 (최초 1회)
 
 ```bash
 cd models
-python dart_langgraph.py
+python gemini_test.py
+```
+
+> `rag_gemini.py`의 `ingest_local_json()`이 JSONL 파일을 로컬 CPU로 임베딩하여 `finance_local_db/`에 저장합니다. (4500U 기준 약 5~10분)
+
+### 4. API 서버 실행
+
+```bash
+cd models
+uvicorn main:app --reload
+```
+
+- **스트리밍 엔드포인트**: `POST /chat/stream`
+- **테스트 페이지**: `test.html`을 브라우저에서 열어 바로 테스트 가능
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph LR
+    A[OpenDART API] -->|CSV 수집| B[dart_collector.py]
+    B -->|CSV → JSONL| C[make_finetune_dataset.py]
+    C -->|6,000건 데이터셋| D[dart_financial_analysis_dataset.jsonl]
+
+    D -->|로컬 임베딩| E[ChromaDB<br/>ko-sroberta-multitask]
+    E -->|유사도 검색| F[rag_gemini.py<br/>FinanceRAG]
+    F -->|컨텍스트 전달| G[Gemini 2.5 Flash]
+    G -->|스트리밍 응답| H[FastAPI<br/>main.py]
+    H -->|SSE| I[브라우저<br/>test.html]
 ```
 
 ---
 
-## �️ Architecture
+## 📡 API Reference
 
-```mermaid
-graph LR
-    A[OpenDART API] -->|수집| B[dart_collector.py<br/>fetch_financials.py]
-    B -->|CSV → JSONL| C[학습 데이터셋]
-    C -->|Unsloth QLoRA| D[Llama 3.2 3B<br/>Fine-tuned]
-    D -->|GGUF 변환| E[Ollama 서빙]
-    E -->|ChatOllama| F[LangGraph Agent]
-    F -->|추출| G[Extractor Node]
-    G -->|검증| H[Validator Node]
-    H -->|에러 시 재시도| G
-    H -->|성공| I[최종 JSON 결과]
+### `POST /chat/stream`
+
+재무 관련 질문에 대해 스트리밍으로 답변합니다.
+
+**Request:**
+
+```json
+{
+  "question": "종근당홀딩스 재무 상태는 어때?"
+}
 ```
+
+**Response:** `text/event-stream` — 토큰 단위로 실시간 스트리밍
 
 ---
 
 ## 🎯 Milestone Progress
 
 ### ✅ Step 1 — Data Collection (완료)
-- [x] 프로젝트 폴더 구조 설계
+
 - [x] 상장사 고유번호(corp_code) 리스트 수집 (`dart_collector.py`)
-- [x] 시가총액 상위 종목 대상 재무제표 대량 수집 (`fetch_financials.py`)
-- [x] 이어받기(Resume) 로직으로 안정적 대량 수집 지원
+- [x] 시가총액 상위 종목 대상 재무제표 대량 수집
+- [x] CSV → JSONL 학습 데이터셋 생성 (`make_finetune_dataset.py`)
 
 ### ✅ Step 2 — SLM Fine-tuning (완료)
-- [x] DART 재무 데이터 기반 학습 데이터셋(JSONL) 구축
-- [x] Unsloth + QLoRA로 Llama 3.2 3B 모델 파인튜닝 (`finetune.py`)
-- [x] 파인튜닝 결과 추론 테스트 (`inference.py`)
-- [x] GGUF 포맷 변환 및 내보내기 (`dart_model_v1.gguf`)
 
-### ✅ Step 3 — Ollama Deployment & LangGraph Agent (완료)
-- [x] Ollama Modelfile 작성 및 로컬 서빙 설정
-- [x] ChatOllama 연동 테스트 (`dart_test.py`)
-- [x] LangGraph 에이전트 구현 (`dart_langgraph.py`)
-  - 추출(Extractor) → 검증(Validator) → 조건부 재시도 파이프라인
-  - 최대 3회 자동 재시도 로직
+- [x] DART 재무 데이터 기반 학습 데이터셋(JSONL) 구축 (~6,000건)
+- [x] Unsloth + QLoRA로 Llama 3.2 3B 파인튜닝
+- [x] GGUF 변환 및 Ollama 등록 (`dart_model_v1.gguf`)
+
+### ✅ Step 3 — RAG + Streaming API (완료)
+
+- [x] 로컬 임베딩 모델(`ko-sroberta-multitask`) + ChromaDB 벡터 DB 구축
+- [x] Gemini 2.5 Flash 기반 RAG 질의응답 (`rag_gemini.py`)
+- [x] FastAPI 스트리밍 API 서버 구현 (`main.py`)
+- [x] 브라우저 테스트 페이지 (`test.html`)
 
 ### 🔲 Step 4 — 고도화 (예정)
+
 - [ ] 프론트엔드 대시보드 (React)
-- [ ] DB 연동 (SQLite / Supabase)
+- [ ] DB 연동 (Supabase)
 - [ ] 실시간 주가 연동 및 분석 리포트 생성
 - [ ] 멀티 에이전트 구조 확장
-
----
-
-## ⚠️ PC 작업 시 참고 (GPU 사양)
-
-- **GPU:** NVIDIA GTX 1660 Super (VRAM 6GB)
-- **Strategy:** 8B 모델보다는 **Llama 3.2 3B**급 모델을 선택하여 **Unsloth + QLoRA**로 로컬 파인튜닝.
-- **Optimization:** VRAM 부족 시 Google Colab 또는 RunPod을 활용한 클라우드 학습 병행.
