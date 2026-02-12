@@ -54,3 +54,6 @@ Desktop.ini
 venv/
 .venv/
 env/
+
+# ===== vertor db ======
+finance_local_db

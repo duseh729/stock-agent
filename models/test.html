@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+  <body>
+    <h2>🚀 RAG 스트리밍 테스트</h2>
+    <input
+      type="text"
+      id="question"
+      style="width: 300px"
+      placeholder="질문을 입력하세요..."
+    />
+    <button onclick="ask()">질문하기</button>
+    <div
+      id="response"
+      style="
+        margin-top: 20px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        min-height: 100px;
+        white-space: pre-wrap;
+      "
+    ></div>
+
+    <script>
+      async function ask() {
+        const btn = document.querySelector("button"); // 버튼 선택
+        const question = document.getElementById("question").value;
+        const resDiv = document.getElementById("response");
+
+        btn.disabled = true; // 1. 답변 시작할 때 버튼 비활성화
+        resDiv.innerText = "🔍 데이터를 찾는 중...";
+
+        try {
+          const response = await fetch("http://localhost:8000/chat/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: question }),
+          });
+
+          resDiv.innerText = ""; // 대기 문구 삭제
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            resDiv.innerText += chunk;
+          }
+        } catch (e) {
+          resDiv.innerText = "❌ 에러 발생: " + e.message;
+        } finally {
+          btn.disabled = false; // 2. 답변 끝나면 버튼 다시 활성화
+        }
+      }
+    </script>
+  </body>
+</html>
