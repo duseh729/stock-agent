@@ -26,8 +26,8 @@ OpenDART에서 수집한 **상장사 재무제표 데이터**를 벡터 DB(Chrom
 stock-agent/
 ├── models/                          # 📌 핵심 실행 디렉토리
 │   ├── main.py                      # FastAPI 스트리밍 API 서버
-│   ├── rag_gemini.py                # LangGraph RAG 엔진 (검색 → 평가 → 생성)
-│   ├── gemini_test.py               # RAG 기능 테스트 스크립트
+│   ├── finance_rag.py               # LangGraph RAG 엔진 (검색 → 평가 → 생성)
+│   ├── vertordb_update.py           # 벡터 DB 구축/업데이트 스크립트
 │   ├── test.html                    # 브라우저 스트리밍 테스트 페이지
 │   ├── dart_financial_analysis_dataset.jsonl  # 학습/임베딩용 재무 데이터셋 (~6,000건)
 │   ├── top_30_financial_data.jsonl   # 시총 상위 30개 기업 재무 데이터
@@ -70,14 +70,14 @@ DART_API_KEY=your_dart_api_key
 GOOGLE_API_KEY=your_google_api_key
 ```
 
-### 3. 벡터 DB 구축 (최초 1회)
+### 3. 벡터 DB 구축
 
 ```bash
 cd models
-python gemini_test.py
+python vertordb_update.py
 ```
 
-> `rag_gemini.py`의 `ingest_local_json()`이 JSONL 파일을 로컬 CPU로 임베딩하여 `finance_local_db/`에 저장합니다. (4500U 기준 약 5~10분)
+> `finance_rag.py`의 `ingest_local_json()`이 JSONL 파일을 로컬 CPU로 임베딩하여 `finance_local_db/`에 저장합니다. (4500U 기준 약 5~10분)
 
 ### 4. API 서버 실행
 
@@ -136,6 +136,28 @@ graph TD
 
 ---
 
+## 📸 Demo
+
+### 1. 벡터 DB에 없는 데이터 질의 시
+
+![vectorDB에 없을때](vectorDB에%20없을때.png)
+
+벡터 DB에 존재하지 않는 기업(Apple)을 질문하면, **Grade 노드**가 검색 결과를 "부적합"으로 판단하고 재시도 후 데이터 부족 응답을 반환
+
+### 2. 벡터 DB에 있는 데이터 질의 시
+
+![vectorDB에 있을때](vectorDB에%20있을때.png)
+
+DB에 존재하는 기업(삼성전자)의 특정 지표를 질문하면, 정확한 수치를 기반으로 즉시 답변
+
+### 3. 심층 분석 질의
+
+![유의미한 답변](유의미한%20답변.png)
+
+다년도 재무 상태 평가와 같은 복잡한 질문에 대해, 매출액·영업이익·ROE 등 여러 지표를 종합하여 **연도별 추세 분석과 평가**를 포함한 상세 답변을 생성
+
+---
+
 ## 🎯 Milestone Progress
 
 ### ✅ Step 1 — Data Collection (완료)
@@ -153,7 +175,7 @@ graph TD
 ### ✅ Step 3 — LangGraph + RAG + Streaming API (완료)
 
 - [x] 로컬 임베딩 모델(`ko-sroberta-multitask`) + ChromaDB 벡터 DB 구축
-- [x] Gemini 2.5 Flash 기반 RAG 질의응답 (`rag_gemini.py`)
+- [x] Gemini 2.5 Flash 기반 RAG 질의응답 (`finance_rag.py`)
 - [x] LangGraph 멀티스텝 파이프라인 도입 (Retrieve → Grade → Generate)
   - 검색 문서 품질 평가 (Gemini 기반 Grading)
   - 부적합 시 최대 2회 자동 재시도

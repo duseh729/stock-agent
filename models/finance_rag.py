@@ -28,7 +28,7 @@ class FinanceRAG:
         load_dotenv()
         self.db_dir = db_dir
         self.embeddings = HuggingFaceEmbeddings(model_name="jhgan/ko-sroberta-multitask", model_kwargs={'device': 'cpu'})
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0)
         
         # 벡터 DB 로드
         self.vector_db = Chroma(persist_directory=self.db_dir, embedding_function=self.embeddings)

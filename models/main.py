@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from rag_gemini import FinanceRAG
+from finance_rag import FinanceRAG
 
 app = FastAPI()
 rag = FinanceRAG() # 서버 시작 시 DB 로드
